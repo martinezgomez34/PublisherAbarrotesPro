@@ -12,16 +12,17 @@ import (
 )
 
 func main() {
+    if err := godotenv.Load(); err != nil {
+        log.Fatal("Error cargando el archivo .env")
+    }
+   
     productQueue := core.NewRabbitMQ("product_queue")
 	defer productQueue.Close()
 
 	userQueue := core.NewRabbitMQ("user_queue")
 	defer userQueue.Close()
 
-    if err := godotenv.Load(); err != nil {
-        log.Fatal("Error cargando el archivo .env")
-    }
-
+   
     r := mux.NewRouter()
     userRoute.SetupUserRoutes(r, userQueue) 
     productRoute.SetupProductRoutes(r, productQueue) 

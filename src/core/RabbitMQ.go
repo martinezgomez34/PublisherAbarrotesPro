@@ -1,4 +1,3 @@
-// core/rabbitmq.go
 package core
 
 import (
@@ -38,7 +37,7 @@ func NewRabbitMQ(queueName string) *RabbitMQ {
 	}
 
 	return &RabbitMQ{
-		Conn:    conn,
+		Conn:    conn,  //itamar teomitzi cruz xd
 		Channel: ch,
 		Queue:   queue,
 	}
