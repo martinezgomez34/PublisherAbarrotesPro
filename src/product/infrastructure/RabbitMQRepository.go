@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"encoding/json"
+	"log"
 	"publisher/src/core"
 	"publisher/src/product/domain"
 )
@@ -15,5 +16,6 @@ func (r *RabbitMQRepository) PublishMessage(message domain.Message) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("Mensaje serializado: %s\n", string(messageData))
 	return r.Rabbit.PublishMessage(messageData)
 }

@@ -1,51 +1,60 @@
+// controllers/product_controller.go
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 	"publisher/src/product/application"
 	"publisher/src/product/domain"
-	"github.com/google/uuid"
+	"github.com/gin-gonic/gin"
 )
 
 type ProductController struct {
 	UseCase *application.ProductUseCase
+	Repo    domain.IProductRepository
 }
 
-func NewProductController(useCase *application.ProductUseCase) *ProductController {
-	return &ProductController{UseCase: useCase}
+func NewProductController(useCase *application.ProductUseCase, repo domain.IProductRepository) *ProductController {
+	return &ProductController{
+		UseCase: useCase,
+		Repo:    repo,
+	}
 }
 
-func (pc *ProductController) CreateProductHandler(w http.ResponseWriter, r *http.Request) {
+func (pc *ProductController) CreateProductHandler(c *gin.Context) {
 	var newProduct struct {
-		Name        string  `json:"name"`
+		Name        string  `json:"name" binding:"required"`
 		Description string  `json:"description"`
-		Price       float64 `json:"price"`
+		Price       float64 `json:"price" binding:"required"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&newProduct); err != nil {
-		http.Error(w, "Error al leer el cuerpo de la solicitud", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&newProduct); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-
 	product := domain.Product{
-		ID:          uuid.New().String(), 
 		Name:        newProduct.Name,
 		Description: newProduct.Description,
 		Price:       newProduct.Price,
 	}
 
+	if err := pc.Repo.SaveProduct(product); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar el producto en la BD"})
+		return
+	}
+
 	message := domain.Message{
-		Type:    domain.MessageTypeCreateProduct,
+		Type:    domain.MessageTypeNotification,
 		Product: product,
 	}
 
 	if err := pc.UseCase.CreateProduct(message); err != nil {
-		http.Error(w, "Error al crear el producto", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al enviar notificación"})
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Producto creado exitosamente"})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Producto creado exitosamente",
+		"id":      product.ID,
+	})
 }

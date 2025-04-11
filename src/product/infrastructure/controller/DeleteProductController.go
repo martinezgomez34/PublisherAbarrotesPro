@@ -1,44 +1,48 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 	"publisher/src/product/application"
 	"publisher/src/product/domain"
+	"github.com/gin-gonic/gin"
 )
 
 type DeleteProductController struct {
 	UseCase *application.DeleteProductUseCase
+	Repo    domain.IProductRepository
 }
 
-func NewDeleteProductController(useCase *application.DeleteProductUseCase) *DeleteProductController {
-	return &DeleteProductController{UseCase: useCase}
-}
-
-func (pc *DeleteProductController) DeleteProductHandler(w http.ResponseWriter, r *http.Request) {
-	var deleteRequest struct {
-		ID string `json:"id"`
+func NewDeleteProductController(useCase *application.DeleteProductUseCase, repo domain.IProductRepository) *DeleteProductController {
+	return &DeleteProductController{
+		UseCase: useCase,
+		Repo:    repo,
 	}
+}
 
-	if err := json.NewDecoder(r.Body).Decode(&deleteRequest); err != nil {
-		http.Error(w, "Error al leer el cuerpo de la solicitud", http.StatusBadRequest)
+func (dc *DeleteProductController) DeleteProductHandler(c *gin.Context) {
+	id := c.Param("id")
+
+	// Verificar si el producto existe
+	if _, err := dc.Repo.GetByID(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Producto no encontrado"})
 		return
 	}
 
-	product := domain.Product{
-		ID: deleteRequest.ID,
+	if err := dc.Repo.DeleteProduct(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al eliminar el producto"})
+		return
 	}
 
 	message := domain.Message{
-		Type:    domain.MessageTypeDeleteProduct,
-		Product: product,
+		Type: domain.MessageTypeNotification,
+		Product: domain.Product{
+		},
 	}
 
-	if err := pc.UseCase.DeleteProduct(message); err != nil {
-		http.Error(w, "Error al eliminar el producto", http.StatusInternalServerError)
+	if err := dc.UseCase.DeleteProduct(message); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al enviar notificación"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Producto eliminado exitosamente"})
+	c.JSON(http.StatusOK, gin.H{"message": "Producto eliminado exitosamente"})
 }

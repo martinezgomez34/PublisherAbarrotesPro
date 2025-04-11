@@ -3,23 +3,34 @@ package routes
 import (
 	"publisher/src/core"
 	"publisher/src/product/application"
+	repositories "publisher/src/product/infrastructure"
 	"publisher/src/product/infrastructure/controller"
-	"publisher/src/product/infrastructure"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
-func SetupProductRoutes(r *mux.Router, rabbitMQ *core.RabbitMQ) {
-	repo := &repositories.RabbitMQRepository{rabbitMQ}
-	productUseCase := application.NewProductUseCase(repo)
-	EditproductUseCase := application.NewEditProductUseCase(repo)
-	DeleteProductUseCase := application.NewDeleteProductUseCase(repo)
+func SetupProductRoutes(router *gin.Engine, rabbitMQ *core.RabbitMQ, db *core.Database) {
+    rabbitRepo := &repositories.RabbitMQRepository{rabbitMQ}
+    dbRepo := repositories.NewProductRepository(db.DB)
 
-	productController := controllers.NewProductController(productUseCase)
-	EditproductController := controllers.NewEditProductController(EditproductUseCase)
-	DeleteproductController := controllers.NewDeleteProductController(DeleteProductUseCase)
+    productUseCase := application.NewProductUseCase(rabbitRepo)
+    editUseCase := application.NewEditProductUseCase(rabbitRepo)
+    deleteUseCase := application.NewDeleteProductUseCase(rabbitRepo)
+    listUseCase := application.NewListProductUseCase(dbRepo)
+    getByIDUseCase := application.NewGetByIDProductUseCase(dbRepo)
 
-	r.HandleFunc("/products", productController.CreateProductHandler).Methods("POST")
-	r.HandleFunc("/products/{id}", EditproductController.UpdateProductHandler).Methods("PUT")
-	r.HandleFunc("/products/{id}", DeleteproductController.DeleteProductHandler).Methods("DELETE")
+    productCtrl := controllers.NewProductController(productUseCase, dbRepo)
+    editCtrl := controllers.NewEditProductController(editUseCase, dbRepo)
+    deleteCtrl := controllers.NewDeleteProductController(deleteUseCase, dbRepo)
+    listCtrl := controllers.NewListProductController(listUseCase)
+    getByIDCtrl := controllers.NewGetByIDProductController(getByIDUseCase)
+
+    productGroup := router.Group("/products")
+    {
+        productGroup.POST("", productCtrl.CreateProductHandler)
+        productGroup.PUT("/:id", editCtrl.UpdateProductHandler)
+        productGroup.DELETE("/:id", deleteCtrl.DeleteProductHandler)
+        productGroup.GET("/", listCtrl.GetAllProducts)
+        productGroup.GET("/:id", getByIDCtrl.GetProductByID)
+    }
 }

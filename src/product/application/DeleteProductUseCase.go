@@ -5,10 +5,10 @@ import (
 )
 
 type DeleteProductUseCase struct {
-	Repo domain.IProductRepository
+	Repo domain.IProductPublisher
 }
 
-func NewDeleteProductUseCase(repo domain.IProductRepository) *DeleteProductUseCase {
+func NewDeleteProductUseCase(repo domain.IProductPublisher) *DeleteProductUseCase {
 	return &DeleteProductUseCase{Repo: repo}
 }
 

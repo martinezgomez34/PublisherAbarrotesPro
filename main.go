@@ -1,42 +1,46 @@
 package main
 
 import (
-    "log"
-    "net/http"
-    "github.com/joho/godotenv"
-    "publisher/src/core"
-    userRoute "publisher/src/user/infrastructure/route" 
-    productRoute "publisher/src/product/infrastructure/route" 
-    "github.com/gorilla/mux"
-    "github.com/gorilla/handlers"
+	"log"
+	"publisher/src/core"
+	"time"
+
+	"github.com/joho/godotenv"
+	productRoute "publisher/src/product/infrastructure/route"
+
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-    if err := godotenv.Load(); err != nil {
-        log.Fatal("Error cargando el archivo .env")
-    }
-   
-    productQueue := core.NewRabbitMQ("product_queue")
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error cargando el archivo .env")
+	}
+
+	productQueue := core.NewRabbitMQ("product_messages")
 	defer productQueue.Close()
 
-	userQueue := core.NewRabbitMQ("user_queue")
+	userQueue := core.NewRabbitMQ("user_messages")
 	defer userQueue.Close()
 
-   
-    r := mux.NewRouter()
-    userRoute.SetupUserRoutes(r, userQueue) 
-    productRoute.SetupProductRoutes(r, productQueue) 
+	db := core.NewDatabase()
+	defer db.Close()
 
-    corsHandler := handlers.CORS(
-        handlers.AllowedOrigins([]string{"http://localhost:4200"}), 
-        handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}), 
-        handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
-    )
+	router := gin.Default()
 
-    http.Handle("/", corsHandler(r))
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
-    log.Println("Servidor corriendo en :8081")
-    if err := http.ListenAndServe(":8081", nil); err != nil {
-        log.Fatal("Error al iniciar el servidor: ", err)
-    }
+	productRoute.SetupProductRoutes(router, productQueue, db)
+
+	log.Println("Servidor corriendo en :8081")
+	if err := router.Run(":8081"); err != nil {
+		log.Fatal("Error al iniciar el servidor: ", err)
+	}
 }

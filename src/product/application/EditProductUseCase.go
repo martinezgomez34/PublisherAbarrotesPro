@@ -4,10 +4,10 @@ import (
 	"publisher/src/product/domain"
 )
 type EditProductUseCase struct {
-	Repo domain.IProductRepository
+	Repo domain.IProductPublisher
 }
 
-func NewEditProductUseCase(repo domain.IProductRepository) *EditProductUseCase {
+func NewEditProductUseCase(repo domain.IProductPublisher) *EditProductUseCase {
 	return &EditProductUseCase{Repo: repo}
 }
 

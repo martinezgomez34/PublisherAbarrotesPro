@@ -1,50 +1,64 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 	"publisher/src/product/application"
 	"publisher/src/product/domain"
+	"github.com/gin-gonic/gin"
 )
 
 type EditProductController struct {
 	UseCase *application.EditProductUseCase
+	Repo    domain.IProductRepository
 }
 
-func NewEditProductController(useCase *application.EditProductUseCase) *EditProductController {
-	return &EditProductController{UseCase: useCase}
+func NewEditProductController(useCase *application.EditProductUseCase, repo domain.IProductRepository) *EditProductController {
+	return &EditProductController{
+		UseCase: useCase,
+		Repo:    repo,
+	}
 }
 
-func (pc *EditProductController) UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
+func (ec *EditProductController) UpdateProductHandler(c *gin.Context) {
+	id := c.Param("id")
+
 	var updatedProduct struct {
-		ID          string  `json:"id"`
 		Name        string  `json:"name"`
 		Description string  `json:"description"`
 		Price       float64 `json:"price"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&updatedProduct); err != nil {
-		http.Error(w, "Error al leer el cuerpo de la solicitud", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&updatedProduct); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verificar si el producto existe
+	if _, err := ec.Repo.GetByID(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Producto no encontrado"})
 		return
 	}
 
 	product := domain.Product{
-		ID:          updatedProduct.ID,
 		Name:        updatedProduct.Name,
 		Description: updatedProduct.Description,
 		Price:       updatedProduct.Price,
 	}
 
-	message := domain.Message{
-		Type:    domain.MessageTypeUpdateProduct,
-		Product: product,
-	}
-
-	if err := pc.UseCase.UpdateProduct(message); err != nil {
-		http.Error(w, "Error al actualizar el producto", http.StatusInternalServerError)
+	if err := ec.Repo.EditProduct(product); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al actualizar el producto"})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "Producto actualizado exitosamente"})
+	message := domain.Message{
+		Type:    domain.MessageTypeNotification,
+		Product: product,
+	}
+
+	if err := ec.UseCase.UpdateProduct(message); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al enviar notificación"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Producto actualizado exitosamente"})
 }
